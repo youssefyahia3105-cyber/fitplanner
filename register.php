@@ -49,11 +49,17 @@ if (mysqli_num_rows($result) > 0) {
 
 
 // =============================
+// ENCRYPT PASSWORD
+// =============================
+$hashed_password = password_hash($password, PASSWORD_BCRYPT);
+
+
+// =============================
 // INSERT USER
 // =============================
 
 $sql = "INSERT INTO users (fullname, email, password)
-VALUES ('$fullname', '$email', '$password')";
+VALUES ('$fullname', '$email', '$hashed_password')";
 
 // exécuter la requête
 if (mysqli_query($conn, $sql)) {
