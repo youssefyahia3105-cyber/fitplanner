@@ -1,32 +1,58 @@
 <?php
+ini_set('display_errors', 1);
+error_reporting(E_ALL);
 session_start();
 
-if (!isset($_SESSION['workout_exercises'])) {
-    header("Location: workout_generator.html");
+$conn = mysqli_connect("localhost", "root", "", "fitplanner");
+
+$workout_id = $_GET['id'];
+$user_id = $_SESSION['user_id'] ?? 6;
+
+// fetch workout info
+$stmt = mysqli_prepare($conn, "SELECT * FROM workouts WHERE id = ? AND user_id = ? AND saved = 1");
+mysqli_stmt_bind_param($stmt, 'ii', $workout_id, $user_id);
+mysqli_stmt_execute($stmt);
+$result = mysqli_stmt_get_result($stmt);
+$workout = mysqli_fetch_assoc($result);
+
+if (!$workout) {
+    header("Location: saved_workouts.php");
     exit();
 }
 
-$goal       = $_SESSION['workout_goal'];
-$difficulty = $_SESSION['workout_difficulty'];
-$exercises  = $_SESSION['workout_exercises'];
-$workout_id = $_SESSION['workout_id'] ?? null;
+// fetch exercises for this workout
+$stmt2 = mysqli_prepare($conn, "
+    SELECT e.id, e.name, e.difficulty, e.description, e.equipment, c.name AS category
+    FROM workout_exercises we
+    JOIN exercises e ON we.exercise_id = e.id
+    JOIN categories c ON e.category_id = c.id
+    WHERE we.workout_id = ?
+");
+mysqli_stmt_bind_param($stmt2, 'i', $workout_id);
+mysqli_stmt_execute($stmt2);
+$result2 = mysqli_stmt_get_result($stmt2);
+$exercises = [];
+while ($row = mysqli_fetch_assoc($result2)) {
+    $exercises[] = $row;
+}
+
+$goal = $workout['goal'];
+$difficulty = $exercises[0]['difficulty'] ?? 'Beginner';
 
 $workout_info = [
     'Weight Loss'     => ['sets' => 3, 'reps' => 15, 'duration' => 40, 'rest' => '30 sec'],
     'Muscle Gain'     => ['sets' => 4, 'reps' => 8,  'duration' => null, 'rest' => '90 sec'],
     'Maintain Weight' => ['sets' => 3, 'reps' => 12, 'duration' => 30, 'rest' => '60 sec'],
 ];
-$info = $workout_info[$goal];
+$info = $workout_info[$goal] ?? $workout_info['Maintain Weight'];
 
 $difficulty_multiplier = [
     'Beginner'     => 0.8,
     'Intermediate' => 1.0,
     'Advanced'     => 1.2,
 ];
-$multiplier = $difficulty_multiplier[$difficulty];
-
+$multiplier = $difficulty_multiplier[$difficulty] ?? 1.0;
 $user_weight = 70;
-
 $cardio_categories = ['Cardio', 'Full Body'];
 
 $exercise_data = [
@@ -130,12 +156,14 @@ function calculateCalories($data, $info, $user_weight, $multiplier) {
         return ['value' => $calories_per_set, 'label' => 'Cal/set'];
     }
 }
+
+mysqli_close($conn);
 ?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>FitPlanner - Workout Plan</title>
+    <title>FitPlanner - <?php echo htmlspecialchars($workout['name']); ?></title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -301,32 +329,6 @@ function calculateCalories($data, $info, $user_weight, $multiplier) {
         .btn-success { background: #2ecc71; color: white; }
         .btn-success:hover { background: #27ae60; }
         .counter { color: #aaa; font-size: 14px; }
-        .save-box {
-            margin-top: 30px;
-            background: #16213e;
-            border: 1px solid #0f3460;
-            border-radius: 14px;
-            padding: 20px;
-        }
-        .save-box input[type="text"] {
-            flex: 1;
-            padding: 10px;
-            border-radius: 8px;
-            border: 1px solid #0f3460;
-            background: #0f3460;
-            color: white;
-            font-size: 14px;
-            min-width: 200px;
-            width: 100%;
-            margin-bottom: 10px;
-        }
-        .save-box input[type="text"]::placeholder { color: #555; }
-        .save-form {
-            display: flex;
-            gap: 10px;
-            flex-wrap: wrap;
-            align-items: center;
-        }
     </style>
 </head>
 <body>
@@ -334,8 +336,8 @@ function calculateCalories($data, $info, $user_weight, $multiplier) {
 
     <div class="header">
         <img src="FullLogo_Transparent_NoBuffer.png" alt="FitPlanner">
-        <h1>Your <?php echo $goal; ?> Workout</h1>
-        <p>Personalized for <strong><?php echo $difficulty; ?></strong> level</p>
+        <h1><?php echo htmlspecialchars($workout['name']); ?></h1>
+        <p><?php echo $goal; ?> — <?php echo $difficulty; ?> level</p>
     </div>
 
     <div class="summary-bar">
@@ -350,116 +352,96 @@ function calculateCalories($data, $info, $user_weight, $multiplier) {
         <?php endforeach; ?>
     </div>
 
-    <?php if (empty($exercises)): ?>
-        <div style="text-align:center; padding:40px; color:#aaa;">
-            <p>No exercises found for this goal and difficulty level.</p>
-            <a href="workout_generator.html" class="btn btn-primary" style="margin-top:20px;">Try Again</a>
-        </div>
-    <?php else: ?>
+    <?php foreach ($exercises as $i => $ex):
+        $data = $exercise_data[$ex['name']] ?? null;
+        $isCardio = in_array($ex['category'], $cardio_categories);
+        $cal = $data ? calculateCalories($data, $info, $user_weight, $multiplier) : ['value' => '~10', 'label' => 'Cal/set'];
+    ?>
+    <div class="exercise-card <?php echo $i === 0 ? 'active' : ''; ?>" id="card-<?php echo $i; ?>">
+        <div class="card-inner">
+            <h2><?php echo $ex['name']; ?></h2>
 
-        <?php foreach ($exercises as $i => $ex):
-            $data = $exercise_data[$ex['name']] ?? null;
-            $isCardio = in_array($ex['category'], $cardio_categories);
-            $cal = $data ? calculateCalories($data, $info, $user_weight, $multiplier) : ['value' => '~10', 'label' => 'Cal/set'];
-        ?>
-        <div class="exercise-card <?php echo $i === 0 ? 'active' : ''; ?>" id="card-<?php echo $i; ?>">
-            <div class="card-inner">
-                <h2><?php echo $ex['name']; ?></h2>
-
-                <div class="meta-row">
-                    <span class="badge <?php echo $ex['difficulty']; ?>"><?php echo $ex['difficulty']; ?></span>
-                    <span class="tag"><?php echo $ex['category']; ?></span>
-                    <span class="tag"><?php echo $ex['equipment']; ?></span>
-                </div>
-
-                <?php if ($data): ?>
-                <div class="section">
-                    <div class="section-title">About this exercise</div>
-                    <p><?php echo $data['description']; ?></p>
-                </div>
-                <div class="section">
-                    <div class="section-title">Secondary Muscles</div>
-                    <p><?php echo $data['secondary']; ?></p>
-                </div>
-                <?php endif; ?>
-
-                <div class="info-grid">
-                    <div class="info-box">
-                        <div class="val"><?php echo $info['sets']; ?></div>
-                        <div class="lbl">Sets</div>
-                    </div>
-                    <div class="info-box">
-                        <?php if ($isCardio && $info['duration']): ?>
-                            <div class="val"><?php echo $info['duration']; ?>s</div>
-                            <div class="lbl">Duration</div>
-                        <?php else: ?>
-                            <div class="val"><?php echo $info['reps']; ?></div>
-                            <div class="lbl">Reps</div>
-                        <?php endif; ?>
-                    </div>
-                    <div class="info-box">
-                        <div class="val"><?php echo $info['rest']; ?></div>
-                        <div class="lbl">Rest</div>
-                    </div>
-                    <div class="info-box">
-                        <div class="val" style="color:#f39c12;"><?php echo $cal['value']; ?></div>
-                        <div class="lbl"><?php echo $cal['label']; ?></div>
-                    </div>
-                </div>
-                <p class="weight-note">Calories calculated for <?php echo $user_weight; ?>kg — <?php echo $difficulty; ?> intensity</p>
-
-                <?php if (isset($steps[$ex['name']])): ?>
-                <div class="section">
-                    <div class="section-title">How to Perform</div>
-                    <ul class="steps-list">
-                        <?php foreach ($steps[$ex['name']] as $step): ?>
-                            <li><?php echo $step; ?></li>
-                        <?php endforeach; ?>
-                    </ul>
-                </div>
-                <?php endif; ?>
-
-                <?php if ($data): ?>
-                <div class="section">
-                    <div class="section-title">Common Mistakes</div>
-                    <ul class="mistakes-list">
-                        <?php foreach ($data['mistakes'] as $mistake): ?>
-                            <li><?php echo $mistake; ?></li>
-                        <?php endforeach; ?>
-                    </ul>
-                </div>
-                <?php endif; ?>
-
+            <div class="meta-row">
+                <span class="badge <?php echo $ex['difficulty']; ?>"><?php echo $ex['difficulty']; ?></span>
+                <span class="tag"><?php echo $ex['category']; ?></span>
+                <span class="tag"><?php echo $ex['equipment']; ?></span>
             </div>
 
-            <div class="nav-buttons">
-                <?php if ($i > 0): ?>
-                    <button class="btn btn-secondary" onclick="goTo(<?php echo $i-1; ?>)">← Previous</button>
-                <?php else: ?>
-                    <a href="workout_generator.php" class="btn btn-secondary">← Change Goal</a>
-                <?php endif; ?>
-                <span class="counter"><?php echo $i+1; ?> / <?php echo count($exercises); ?></span>
-                <?php if ($i < count($exercises)-1): ?>
-                    <button class="btn btn-primary" onclick="goTo(<?php echo $i+1; ?>)">Next →</button>
-                <?php else: ?>
-                    <a href="workout_generator.php" class="btn btn-success">Done!</a>
-                <?php endif; ?>
+            <?php if ($data): ?>
+            <div class="section">
+                <div class="section-title">About this exercise</div>
+                <p><?php echo $data['description']; ?></p>
             </div>
-        </div>
-        <?php endforeach; ?>
+            <div class="section">
+                <div class="section-title">Secondary Muscles</div>
+                <p><?php echo $data['secondary']; ?></p>
+            </div>
+            <?php endif; ?>
 
-        <?php if ($workout_id): ?>
-        <div class="save-box">
-            <div class="section-title" style="margin-bottom:12px;">SAVE THIS WORKOUT</div>
-            <form action="save_workout.php" method="POST" class="save-form">
-                <input type="hidden" name="workout_id" value="<?php echo $workout_id; ?>">
-                <input type="text" name="workout_name" placeholder="Give this workout a name (e.g. Monday Chest Day)" required>
-                <button type="submit" class="btn btn-success">Save Workout</button>
-            </form>
-        </div>
-        <?php endif; ?>
+            <div class="info-grid">
+                <div class="info-box">
+                    <div class="val"><?php echo $info['sets']; ?></div>
+                    <div class="lbl">Sets</div>
+                </div>
+                <div class="info-box">
+                    <?php if ($isCardio && $info['duration']): ?>
+                        <div class="val"><?php echo $info['duration']; ?>s</div>
+                        <div class="lbl">Duration</div>
+                    <?php else: ?>
+                        <div class="val"><?php echo $info['reps']; ?></div>
+                        <div class="lbl">Reps</div>
+                    <?php endif; ?>
+                </div>
+                <div class="info-box">
+                    <div class="val"><?php echo $info['rest']; ?></div>
+                    <div class="lbl">Rest</div>
+                </div>
+                <div class="info-box">
+                    <div class="val" style="color:#f39c12;"><?php echo $cal['value']; ?></div>
+                    <div class="lbl"><?php echo $cal['label']; ?></div>
+                </div>
+            </div>
+            <p class="weight-note">Calories calculated for <?php echo $user_weight; ?>kg — <?php echo $difficulty; ?> intensity</p>
 
-    <?php endif; ?>
+            <?php if (isset($steps[$ex['name']])): ?>
+            <div class="section">
+                <div class="section-title">How to Perform</div>
+                <ul class="steps-list">
+                    <?php foreach ($steps[$ex['name']] as $step): ?>
+                        <li><?php echo $step; ?></li>
+                    <?php endforeach; ?>
+                </ul>
+            </div>
+            <?php endif; ?>
+
+            <?php if ($data): ?>
+            <div class="section">
+                <div class="section-title">Common Mistakes</div>
+                <ul class="mistakes-list">
+                    <?php foreach ($data['mistakes'] as $mistake): ?>
+                        <li><?php echo $mistake; ?></li>
+                    <?php endforeach; ?>
+                </ul>
+            </div>
+            <?php endif; ?>
+
+        </div>
+
+        <div class="nav-buttons">
+            <?php if ($i > 0): ?>
+                <button class="btn btn-secondary" onclick="goTo(<?php echo $i-1; ?>)">← Previous</button>
+            <?php else: ?>
+                <a href="saved_workouts.php" class="btn btn-secondary">← Back to Saved</a>
+            <?php endif; ?>
+            <span class="counter"><?php echo $i+1; ?> / <?php echo count($exercises); ?></span>
+            <?php if ($i < count($exercises)-1): ?>
+                <button class="btn btn-primary" onclick="goTo(<?php echo $i+1; ?>)">Next →</button>
+            <?php else: ?>
+                <a href="saved_workouts.php" class="btn btn-success">Done!</a>
+            <?php endif; ?>
+        </div>
+    </div>
+    <?php endforeach; ?>
 
 </div>
 

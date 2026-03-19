@@ -17,7 +17,7 @@ if (mysqli_num_rows($result) > 0) {
         session_start();
         $_SESSION['user_id'] = $user['id'];
         $_SESSION['fullname'] = $user['fullname'];
-        header("Location: workout_generator.html");
+        header("Location: workout_generator.php");
         exit();
     } else {
         echo "Wrong email or password";

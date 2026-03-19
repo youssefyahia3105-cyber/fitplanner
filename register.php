@@ -63,7 +63,12 @@ VALUES ('$fullname', '$email', '$hashed_password')";
 
 // exécuter la requête
 if (mysqli_query($conn, $sql)) {
-    echo "Account created successfully!";
+    $new_user_id = mysqli_insert_id($conn);
+    session_start();
+    $_SESSION['user_id'] = $new_user_id;
+    $_SESSION['fullname'] = $fullname;
+    header("Location: workout_generator.php");
+    exit();
 } else {
     echo "Error";
 }

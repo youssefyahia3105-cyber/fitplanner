@@ -3,7 +3,7 @@ session_start();
 
 $conn = mysqli_connect("localhost", "root", "", "fitplanner");
 
-$user_id = 6;
+$user_id = $_SESSION['user_id'] ?? 6;
 $goal = $_POST['goal'];
 $difficulty = $_POST['difficulty'];
 
@@ -43,6 +43,7 @@ if (!empty($exercises)) {
     mysqli_stmt_bind_param($stmt2, 'is', $user_id, $goal);
     mysqli_stmt_execute($stmt2);
     $workout_id = mysqli_insert_id($conn);
+    $_SESSION['workout_id'] = $workout_id;
 
     foreach ($exercises as $exercise) {
         $stmt3 = mysqli_prepare($conn, "INSERT INTO workout_exercises (workout_id, exercise_id) VALUES (?, ?)");
