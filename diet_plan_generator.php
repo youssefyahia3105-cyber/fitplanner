@@ -21,6 +21,45 @@ $message_type = '';
 $meal_message = '';
 $meal_message_type = '';
 
+// Ajouter cette fonction après les includes
+function getLSTMRecommendation($conn, $user_id) {
+    $stmt = mysqli_prepare($conn, "SELECT age, gender, weight, height, activity_level, goal FROM user_profile_stats WHERE user_id = ?");
+    mysqli_stmt_bind_param($stmt, 'i', $user_id);
+    mysqli_stmt_execute($stmt);
+    $result = mysqli_stmt_get_result($stmt);
+    $profile = mysqli_fetch_assoc($result);
+    
+    if (!$profile) {
+        return null;
+    }
+    
+    // Appeler l'API
+    $ch = curl_init("http://localhost:5000/predict"); // Si tu utilises Flask
+    curl_setopt($ch, CURLOPT_POST, true);
+    curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($profile));
+    curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json']);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    
+    $response = curl_exec($ch);
+    curl_close($ch);
+    
+    return json_decode($response, true);
+}
+
+// Utilisation dans la page
+$lstm_recommendation = getLSTMRecommendation($conn, $user_id);
+if ($lstm_recommendation && isset($lstm_recommendation['calories'])) {
+    // Afficher la recommandation LSTM
+    echo "<div class='card'>";
+    echo "<h2>🤖 Recommandation IA (LSTM)</h2>";
+    echo "<div class='stats-grid'>";
+    echo "<div class='stat-card'><div class='value'>{$lstm_recommendation['calories']} kcal</div><div class='label'>Calories recommandées</div></div>";
+    echo "<div class='stat-card'><div class='value'>{$lstm_recommendation['protein']} g</div><div class='label'>Protéines</div></div>";
+    echo "<div class='stat-card'><div class='value'>{$lstm_recommendation['carbs']} g</div><div class='label'>Glucides</div></div>";
+    echo "<div class='stat-card'><div class='value'>{$lstm_recommendation['fat']} g</div><div class='label'>Lipides</div></div>";
+    echo "</div></div>";
+}
+
 // Get user stats
 $stmt = mysqli_prepare($conn, "SELECT * FROM user_profile_stats WHERE user_id = ?");
 mysqli_stmt_bind_param($stmt, 'i', $user_id);
@@ -138,6 +177,143 @@ $firstname = explode(' ', $_SESSION['fullname'] ?? 'Athlete')[0];
             padding: 0;
             box-sizing: border-box;
         }
+
+        /* Modal personnalisé pour la quantité */
+.quantity-modal {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.7);
+    backdrop-filter: blur(5px);
+    z-index: 1000;
+    justify-content: center;
+    align-items: center;
+}
+
+.quantity-modal-content {
+    background: #16213e;
+    border: 1px solid #5b9bd5;
+    border-radius: 20px;
+    padding: 25px;
+    width: 90%;
+    max-width: 320px;
+    text-align: center;
+    animation: modalSlideIn 0.3s ease;
+}
+
+@keyframes modalSlideIn {
+    from {
+        opacity: 0;
+        transform: translateY(-50px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.quantity-modal-content h3 {
+    color: #5b9bd5;
+    margin-bottom: 15px;
+    font-size: 20px;
+}
+
+.quantity-modal-content .food-name {
+    font-size: 18px;
+    font-weight: bold;
+    color: #eee;
+    margin-bottom: 20px;
+    padding: 10px;
+    background: #0f3460;
+    border-radius: 10px;
+}
+
+.quantity-input-group {
+    margin-bottom: 20px;
+}
+
+.quantity-input-group label {
+    display: block;
+    color: #aaa;
+    margin-bottom: 8px;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.quantity-input-group input {
+    width: 100%;
+    padding: 12px;
+    border-radius: 10px;
+    border: 1px solid #0f3460;
+    background: #0f3460;
+    color: white;
+    font-size: 16px;
+    text-align: center;
+}
+
+.quantity-presets {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+}
+
+.preset-btn {
+    padding: 6px 12px;
+    background: #0f3460;
+    border: none;
+    border-radius: 20px;
+    color: #aaa;
+    cursor: pointer;
+    font-size: 12px;
+    transition: all 0.2s;
+}
+
+.preset-btn:hover {
+    background: #5b9bd5;
+    color: white;
+    transform: scale(1.05);
+}
+
+.modal-buttons {
+    display: flex;
+    gap: 10px;
+}
+
+.modal-buttons button {
+    flex: 1;
+    padding: 12px;
+    border: none;
+    border-radius: 10px;
+    font-weight: bold;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.btn-confirm {
+    background: #5b9bd5;
+    color: white;
+}
+
+.btn-confirm:hover {
+    background: #4a8ac4;
+    transform: translateY(-2px);
+}
+
+.btn-cancel {
+    background: #0f3460;
+    color: #aaa;
+}
+
+.btn-cancel:hover {
+    background: #e74c3c;
+    color: white;
+}
         
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
@@ -628,6 +804,37 @@ $firstname = explode(' ', $_SESSION['fullname'] ?? 'Athlete')[0];
         </div>
     </div>
     
+<?php 
+    $lstm_recommendation = getLSTMRecommendation($conn, $user_id);
+    if ($lstm_recommendation && isset($lstm_recommendation['calories'])): 
+    ?>
+    <div class="card" style="border-color: #9b59b6;">
+        <h2>🤖 Recommandation IA (LSTM)</h2>
+        <p style="color: #aaa; margin-bottom: 15px;">Basée sur votre historique et les données d'entraînement</p>
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="value" style="color: #9b59b6;"><?php echo $lstm_recommendation['calories']; ?> kcal</div>
+                <div class="label">Calories recommandées</div>
+            </div>
+            <div class="stat-card">
+                <div class="value" style="color: #9b59b6;"><?php echo $lstm_recommendation['protein']; ?> g</div>
+                <div class="label">Protéines</div>
+            </div>
+            <div class="stat-card">
+                <div class="value" style="color: #9b59b6;"><?php echo $lstm_recommendation['carbs']; ?> g</div>
+                <div class="label">Glucides</div>
+            </div>
+            <div class="stat-card">
+                <div class="value" style="color: #9b59b6;"><?php echo $lstm_recommendation['fat']; ?> g</div>
+                <div class="label">Lipides</div>
+            </div>
+        </div>
+        <div class="meal-total" style="margin-top: 15px; background: #0f3460; text-align: center;">
+            <small>⚡ Modèle LSTM entraîné sur plus de 5000 données utilisateurs</small>
+        </div>
+    </div>
+    <?php endif; ?>
+
     <!-- Food Database -->
     <div class="card">
         <h2>🍎 Food Database</h2>
@@ -688,32 +895,35 @@ $firstname = explode(' ', $_SESSION['fullname'] ?? 'Athlete')[0];
     <input type="hidden" name="meal_date" id="meal-date">
 </form>
 
+<!-- Modal pour la quantité -->
+<div id="quantityModal" class="quantity-modal">
+    <div class="quantity-modal-content">
+        <h3>🍽️ Quantité</h3>
+        <div class="food-name" id="modalFoodName">Aliment</div>
+        <div class="quantity-input-group">
+            <label>GRAMMES</label>
+            <input type="number" id="quantityInput" value="100" step="10" min="1">
+        </div>
+        <div class="quantity-presets">
+            <button class="preset-btn" data-quantity="50">50g</button>
+            <button class="preset-btn" data-quantity="100">100g</button>
+            <button class="preset-btn" data-quantity="150">150g</button>
+            <button class="preset-btn" data-quantity="200">200g</button>
+            <button class="preset-btn" data-quantity="300">300g</button>
+        </div>
+        <div class="modal-buttons">
+            <button class="btn-cancel" onclick="closeModal()">Annuler</button>
+            <button class="btn-confirm" onclick="confirmAddFood()">Ajouter</button>
+        </div>
+    </div>
+</div>
+
 <script>
     let currentMeal = [];
     const dailyGoal = <?php echo $goal_calories['calories']; ?>;
-    
-    function addFood(food) {
-        let portion = prompt("Quantity (in grams):", food.typical_portion || 100);
-        if (!portion || portion <= 0) return;
-        
-        const ratio = portion / 100;
-        const calories = Math.round(food.calories_per_100g * ratio);
-        const protein = (food.protein * ratio).toFixed(1);
-        const carbs = (food.carbs * ratio).toFixed(1);
-        const fat = (food.fat * ratio).toFixed(1);
-        
-        currentMeal.push({
-            id: Date.now(),
-            name: food.name,
-            portion: portion,
-            calories: calories,
-            protein: protein,
-            carbs: carbs,
-            fat: fat
-        });
-        
-        updateMealDisplay();
-    }
+    let selectedFood = null;
+
+    // ========== FONCTIONS PRINCIPALES ==========
     
     function updateMealDisplay() {
         const mealList = document.getElementById('meal-list');
@@ -829,6 +1039,87 @@ $firstname = explode(' ', $_SESSION['fullname'] ?? 'Athlete')[0];
         form.submit();
     }
     
+    // ========== FONCTIONS POUR LE MODAL ==========
+    
+    function addFood(food) {
+        selectedFood = food;
+        document.getElementById('modalFoodName').innerHTML = food.name;
+        const defaultPortion = food.typical_portion || 100;
+        document.getElementById('quantityInput').value = defaultPortion;
+        document.getElementById('quantityModal').style.display = 'flex';
+    }
+    
+    function closeModal() {
+        document.getElementById('quantityModal').style.display = 'none';
+        selectedFood = null;
+    }
+    
+    function confirmAddFood() {
+        if (!selectedFood) return;
+        
+        let portion = parseInt(document.getElementById('quantityInput').value);
+        if (isNaN(portion) || portion <= 0) {
+            portion = 100;
+        }
+        
+        const ratio = portion / 100;
+        const calories = Math.round(selectedFood.calories_per_100g * ratio);
+        const protein = (selectedFood.protein * ratio).toFixed(1);
+        const carbs = (selectedFood.carbs * ratio).toFixed(1);
+        const fat = (selectedFood.fat * ratio).toFixed(1);
+        
+        currentMeal.push({
+            id: Date.now(),
+            name: selectedFood.name,
+            portion: portion,
+            calories: calories,
+            protein: protein,
+            carbs: carbs,
+            fat: fat
+        });
+        
+        updateMealDisplay();
+        closeModal();
+        
+        // Afficher une notification
+        showInlineMessage(`✅ ${selectedFood.name} ajouté (${portion}g)`, 'success');
+    }
+    
+    // ========== GESTIONNAIRES D'ÉVÉNEMENTS ==========
+    
+    // Gestion des presets
+    document.addEventListener('DOMContentLoaded', function() {
+        const presetBtns = document.querySelectorAll('.preset-btn');
+        presetBtns.forEach(btn => {
+            btn.addEventListener('click', function() {
+                const quantity = this.getAttribute('data-quantity');
+                document.getElementById('quantityInput').value = quantity;
+            });
+        });
+    });
+    
+    // Fermer le modal en cliquant en dehors
+    window.onclick = function(event) {
+        const modal = document.getElementById('quantityModal');
+        if (event.target === modal) {
+            closeModal();
+        }
+    };
+    
+    // Support de la touche Entrée pour valider
+    document.addEventListener('keydown', function(event) {
+        const modal = document.getElementById('quantityModal');
+        if (modal.style.display === 'flex') {
+            if (event.key === 'Enter') {
+                confirmAddFood();
+            }
+            if (event.key === 'Escape') {
+                closeModal();
+            }
+        }
+    });
+    
+    // Messages qui s'effacent automatiquement
     setTimeout(() => {
         const messages = document.querySelectorAll('.message');
         messages.forEach(msg => {
@@ -843,7 +1134,6 @@ $firstname = explode(' ', $_SESSION['fullname'] ?? 'Athlete')[0];
         });
     }, 1000);
 </script>
-
 </body>
 </html>
 
