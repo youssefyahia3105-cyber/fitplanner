@@ -1,6 +1,9 @@
 <?php
 session_start();
-
+if (!isset($_SESSION['user_id'])) {
+    header("Location: login.html");
+    exit();
+}
 $conn = mysqli_connect("localhost", "root", "", "fitplanner");
 
 $user_id = $_SESSION['user_id'] ?? 6;

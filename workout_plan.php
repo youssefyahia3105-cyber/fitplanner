@@ -1,8 +1,12 @@
 <?php
 session_start();
+if (!isset($_SESSION['user_id'])) {
+    header("Location: login.html");
+    exit();
+}
 
 if (!isset($_SESSION['workout_exercises'])) {
-    header("Location: workout_generator.html");
+    header("Location: workout_generator.php");
     exit();
 }
 
@@ -24,9 +28,7 @@ $difficulty_multiplier = [
     'Advanced'     => 1.2,
 ];
 $multiplier = $difficulty_multiplier[$difficulty];
-
 $user_weight = 70;
-
 $cardio_categories = ['Cardio', 'Full Body'];
 
 $exercise_data = [
@@ -138,16 +140,21 @@ function calculateCalories($data, $info, $user_weight, $multiplier) {
     <title>FitPlanner - Workout Plan</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        body {
-            font-family: 'Segoe UI', sans-serif;
-            background: #1a1a2e;
-            color: #eee;
-            min-height: 100vh;
-            padding: 30px 20px;
-        }
-        .container { max-width: 750px; margin: 0 auto; }
+      body {
+    font-family: 'Segoe UI', sans-serif;
+    background: #1a1a2e;
+    color: #eee;
+    min-height: 100vh;
+    padding: 30px 20px;
+    padding-top: 100px;
+}
+.container {
+    max-width: 750px;
+    margin: 0 auto;
+    padding: 30px 20px;
+    padding-top: 30px;
+}
         .header { text-align: center; margin-bottom: 25px; }
-        .header img { height: 60px; margin-bottom: 15px; }
         .header h1 { font-size: 26px; color: #5b9bd5; }
         .header p { color: #aaa; margin-top: 5px; font-size: 14px; }
         .summary-bar {
@@ -330,10 +337,10 @@ function calculateCalories($data, $info, $user_weight, $multiplier) {
     </style>
 </head>
 <body>
+<?php include 'navbar.php'; ?>
 <div class="container">
 
     <div class="header">
-        <img src="FullLogo_Transparent_NoBuffer.png" alt="FitPlanner">
         <h1>Your <?php echo $goal; ?> Workout</h1>
         <p>Personalized for <strong><?php echo $difficulty; ?></strong> level</p>
     </div>
@@ -353,7 +360,7 @@ function calculateCalories($data, $info, $user_weight, $multiplier) {
     <?php if (empty($exercises)): ?>
         <div style="text-align:center; padding:40px; color:#aaa;">
             <p>No exercises found for this goal and difficulty level.</p>
-            <a href="workout_generator.html" class="btn btn-primary" style="margin-top:20px;">Try Again</a>
+            <a href="workout_generator.php" class="btn btn-primary" style="margin-top:20px;">Try Again</a>
         </div>
     <?php else: ?>
 
@@ -460,7 +467,6 @@ function calculateCalories($data, $info, $user_weight, $multiplier) {
         <?php endif; ?>
 
     <?php endif; ?>
-
 </div>
 
 <script>

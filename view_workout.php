@@ -1,14 +1,18 @@
 <?php
 ini_set('display_errors', 1);
 error_reporting(E_ALL);
+
 session_start();
+if (!isset($_SESSION['user_id'])) {
+    header("Location: login.html");
+    exit();
+}
 
 $conn = mysqli_connect("localhost", "root", "", "fitplanner");
 
 $workout_id = $_GET['id'];
 $user_id = $_SESSION['user_id'] ?? 6;
 
-// fetch workout info
 $stmt = mysqli_prepare($conn, "SELECT * FROM workouts WHERE id = ? AND user_id = ? AND saved = 1");
 mysqli_stmt_bind_param($stmt, 'ii', $workout_id, $user_id);
 mysqli_stmt_execute($stmt);
@@ -20,7 +24,6 @@ if (!$workout) {
     exit();
 }
 
-// fetch exercises for this workout
 $stmt2 = mysqli_prepare($conn, "
     SELECT e.id, e.name, e.difficulty, e.description, e.equipment, c.name AS category
     FROM workout_exercises we
@@ -167,15 +170,15 @@ mysqli_close($conn);
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
-            font-family: 'Segoe UI', sans-serif;
-            background: #1a1a2e;
-            color: #eee;
-            min-height: 100vh;
-            padding: 30px 20px;
-        }
+    font-family: 'Segoe UI', sans-serif;
+    background: #1a1a2e;
+    color: #eee;
+    min-height: 100vh;
+    padding: 30px 20px;
+   padding-top: 100px;
+}
         .container { max-width: 750px; margin: 0 auto; }
         .header { text-align: center; margin-bottom: 25px; }
-        .header img { height: 60px; margin-bottom: 15px; }
         .header h1 { font-size: 26px; color: #5b9bd5; }
         .header p { color: #aaa; margin-top: 5px; font-size: 14px; }
         .summary-bar {
@@ -332,10 +335,10 @@ mysqli_close($conn);
     </style>
 </head>
 <body>
+<?php include 'navbar.php'; ?>
 <div class="container">
 
     <div class="header">
-        <img src="FullLogo_Transparent_NoBuffer.png" alt="FitPlanner">
         <h1><?php echo htmlspecialchars($workout['name']); ?></h1>
         <p><?php echo $goal; ?> — <?php echo $difficulty; ?> level</p>
     </div>
