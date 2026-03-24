@@ -83,23 +83,47 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action']) && $_POST['a
     $bmi = CalorieCalculator::calculateBMI($weight, $height);
     $water_needs = CalorieCalculator::calculateWaterNeeds($weight, $activity_level);
     
+    // Form submission handling
+if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action']) && $_POST['action'] == 'save_profile') {
+    $weight = $_POST['weight'];
+    $height = $_POST['height'];
+    $age = $_POST['age'];
+    $gender = $_POST['gender'];
+    $activity_level = $_POST['activity_level'];
+    $goal = $_POST['goal'];
+    
+    // Calculations
+    $bmr = CalorieCalculator::calculateBMR($gender, $weight, $height, $age);
+    $tdee = CalorieCalculator::calculateTDEE($bmr, $activity_level);
+    $goal_calories = CalorieCalculator::calculateGoalCalories($tdee, $goal);
+    $bmi = CalorieCalculator::calculateBMI($weight, $height);
+    $water_needs = CalorieCalculator::calculateWaterNeeds($weight, $activity_level);
+    
     // Save to database
     if ($user_stats) {
         $stmt = mysqli_prepare($conn, "UPDATE user_profile_stats SET weight=?, height=?, age=?, gender=?, activity_level=?, goal=? WHERE user_id=?");
-        mysqli_stmt_bind_param($stmt, 'ddissi', $weight, $height, $age, $gender, $activity_level, $goal, $user_id);
+        // CORRECTION: 'ddissii' pour 7 variables (d,d,i,s,s,i,i)
+        mysqli_stmt_bind_param($stmt, 'ddissii', $weight, $height, $age, $gender, $activity_level, $goal, $user_id);
     } else {
         $stmt = mysqli_prepare($conn, "INSERT INTO user_profile_stats (user_id, weight, height, age, gender, activity_level, goal) VALUES (?, ?, ?, ?, ?, ?, ?)");
+        // CORRECTION: 'iddissi' pour 7 variables (i,d,d,i,s,s,i)
         mysqli_stmt_bind_param($stmt, 'iddissi', $user_id, $weight, $height, $age, $gender, $activity_level, $goal);
     }
     
     if (mysqli_stmt_execute($stmt)) {
         $message = "✅ Your profile has been saved successfully!";
         $message_type = "success";
-        $user_stats = ['weight' => $weight, 'height' => $height, 'age' => $age, 'gender' => $gender, 'activity_level' => $activity_level, 'goal' => $goal];
+        // Recharger les données utilisateur après sauvegarde
+        $stmt_refresh = mysqli_prepare($conn, "SELECT * FROM user_profile_stats WHERE user_id = ?");
+        mysqli_stmt_bind_param($stmt_refresh, 'i', $user_id);
+        mysqli_stmt_execute($stmt_refresh);
+        $result_refresh = mysqli_stmt_get_result($stmt_refresh);
+        $user_stats = mysqli_fetch_assoc($result_refresh);
     } else {
         $message = "❌ Error saving profile: " . mysqli_error($conn);
         $message_type = "error";
     }
+}
 }
 
 // Meal saving handling
